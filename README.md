@@ -187,6 +187,7 @@ services.AddZeroBounce(options =>
 Observed against the live API, so you don't have to:
 
 - Errors come back as **HTTP 200** — `{"error": "…"}` on `validate`, `{"errors":[{"email_address":"all",…}]}` on `validatebatch`, and `{"Credits":"-1"}` on `getcredits`.
+- `validate` and `getcredits` take the key in a **form-encoded** POST body (so it stays out of your request logs); a JSON body gets `415` / `500` and a header gets a Cloudflare `403`. `validatebatch` is JSON-only.
 - `mx_found` is the **string** `"true"`/`"false"`; `free_email` is a real boolean; `catchall_domain` may be `null`.
 - `Credits` and `domain_age_days` are strings (`domain_age_days` may be `""`).
 - `processed_at` is `"yyyy-MM-dd HH:mm:ss.fff"` with no zone designator (UTC).

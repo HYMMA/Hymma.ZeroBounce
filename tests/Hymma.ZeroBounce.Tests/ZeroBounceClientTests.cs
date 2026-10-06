@@ -8,9 +8,9 @@ namespace Hymma.ZeroBounce.Tests;
 
 public class ZeroBounceClientTests
 {
-    private const string Validate = "https://api.zerobounce.net/v2/validate*";
+    private const string Validate = "https://api.zerobounce.net/v2/validate";
     private const string ValidateBatch = "https://api.zerobounce.net/v2/validatebatch";
-    private const string GetCredits = "https://api.zerobounce.net/v2/getcredits*";
+    private const string GetCredits = "https://api.zerobounce.net/v2/getcredits";
 
     // Captured live on 2026-10-06 — note mx_found is a string and domain_age_days
     // is a string, exactly as the API sends them.
@@ -144,15 +144,16 @@ public class ZeroBounceClientTests
     }
 
     [Fact]
-    public async Task ValidateAsync_SendsKeyClampedTimeoutAndIp()
+    public async Task ValidateAsync_PostsKeyClampedTimeoutAndIpInTheBodyNotTheUrl()
     {
         _options.TimeoutSeconds = 90; // above the API's 60s ceiling
         var mockHttp = new MockHttpMessageHandler();
-        mockHttp.Expect(HttpMethod.Get, Validate)
-            .WithQueryString("api_key", "test_key")
-            .WithQueryString("email", "a@b.com")
-            .WithQueryString("timeout", "60")
-            .WithQueryString("ip_address", "203.0.113.9")
+        mockHttp.Expect(HttpMethod.Post, Validate)
+            .With(req => string.IsNullOrEmpty(req.RequestUri!.Query)) // the key must never be in a URI
+            .WithFormData("api_key", "test_key")
+            .WithFormData("email", "a@b.com")
+            .WithFormData("timeout", "60")
+            .WithFormData("ip_address", "203.0.113.9")
             .Respond("application/json", """{"address":"a@b.com","status":"valid","sub_status":""}""");
 
         var result = await CreateClient(mockHttp).ValidateAsync("a@b.com", "203.0.113.9");
@@ -166,8 +167,8 @@ public class ZeroBounceClientTests
     {
         _options.TimeoutSeconds = 0;
         var mockHttp = new MockHttpMessageHandler();
-        mockHttp.Expect(HttpMethod.Get, Validate)
-            .WithQueryString("timeout", "3")
+        mockHttp.Expect(HttpMethod.Post, Validate)
+            .WithFormData("timeout", "3")
             .Respond("application/json", """{"address":"a@b.com","status":"valid","sub_status":""}""");
 
         await CreateClient(mockHttp).ValidateAsync("a@b.com");
@@ -179,8 +180,8 @@ public class ZeroBounceClientTests
     public async Task ValidateAsync_OmitsIpWhenNotGiven()
     {
         var mockHttp = new MockHttpMessageHandler();
-        mockHttp.Expect(HttpMethod.Get, Validate)
-            .With(req => !req.RequestUri!.Query.Contains("ip_address"))
+        mockHttp.Expect(HttpMethod.Post, Validate)
+            .With(req => !Body(req).Contains("ip_address"))
             .Respond("application/json", """{"address":"a@b.com","status":"valid","sub_status":""}""");
 
         await CreateClient(mockHttp).ValidateAsync("a@b.com");
@@ -328,9 +329,9 @@ public class ZeroBounceClientTests
     public async Task IsSafeToSendAsync_ReflectsVerdict()
     {
         var mockHttp = new MockHttpMessageHandler();
-        mockHttp.When(Validate).WithQueryString("email", "ok@b.com")
+        mockHttp.When(Validate).WithFormData("email", "ok@b.com")
             .Respond("application/json", """{"address":"ok@b.com","status":"catch-all","sub_status":""}""");
-        mockHttp.When(Validate).WithQueryString("email", "dead@b.com")
+        mockHttp.When(Validate).WithFormData("email", "dead@b.com")
             .Respond("application/json", """{"address":"dead@b.com","status":"invalid","sub_status":"mailbox_not_found"}""");
         var client = CreateClient(mockHttp);
 
@@ -520,11 +521,12 @@ public class ZeroBounceClientTests
     #region credits
 
     [Fact]
-    public async Task GetCreditsAsync_ParsesStringBalance()
+    public async Task GetCreditsAsync_PostsKeyInTheBodyAndParsesStringBalance()
     {
         var mockHttp = new MockHttpMessageHandler();
-        mockHttp.Expect(HttpMethod.Get, GetCredits)
-            .WithQueryString("api_key", "test_key")
+        mockHttp.Expect(HttpMethod.Post, GetCredits)
+            .With(req => string.IsNullOrEmpty(req.RequestUri!.Query))
+            .WithFormData("api_key", "test_key")
             .Respond("application/json", """{"Credits":"5100"}""");
 
         var credits = await CreateClient(mockHttp).GetCreditsAsync();

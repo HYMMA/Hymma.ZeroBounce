@@ -87,15 +87,22 @@ public class ZeroBounceClient : IZeroBounceClient
             };
         }
 
-        var query = $"validate?api_key={Uri.EscapeDataString(_options.ApiKey)}" +
-                    $"&email={Uri.EscapeDataString(email)}" +
-                    $"&timeout={ApiTimeoutSeconds}";
+        // The key travels in the form body, never the URL: HttpClientFactory's
+        // default logger prints every request URI at Information level, and
+        // OpenTelemetry's url.full tag keeps the query string on .NET 8. ZeroBounce
+        // rejects a JSON body here with 415 and a header with 403; form-encoding works.
+        var form = new Dictionary<string, string>
+        {
+            ["api_key"] = _options.ApiKey,
+            ["email"] = email,
+            ["timeout"] = ApiTimeoutSeconds.ToString(CultureInfo.InvariantCulture)
+        };
         if (!string.IsNullOrWhiteSpace(ipAddress))
-            query += $"&ip_address={Uri.EscapeDataString(ipAddress)}";
+            form["ip_address"] = ipAddress;
 
         _logger.LogDebug("Validating {Email} via ZeroBounce", email);
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, query);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "validate") { Content = new FormUrlEncodedContent(form) };
         var (body, error) = await SendAsync(request, ApiTimeoutSeconds + TimeoutGraceSeconds, $"validating {email}", cancellationToken);
         if (body is null)
             return CreateErrorResult(email, error, rawResponse: null);
@@ -221,7 +228,11 @@ public class ZeroBounceClient : IZeroBounceClient
     /// <inheritdoc />
     public async Task<long> GetCreditsAsync(CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"getcredits?api_key={Uri.EscapeDataString(_options.ApiKey)}");
+        // Same reasoning as ValidateAsync: form body, so the key never appears in a URI.
+        using var request = new HttpRequestMessage(HttpMethod.Post, "getcredits")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["api_key"] = _options.ApiKey })
+        };
         const string operation = "reading the credit balance";
 
         var (body, error) = await SendAsync(request, CreditsBudgetSeconds, operation, cancellationToken);
@@ -270,8 +281,8 @@ public class ZeroBounceClient : IZeroBounceClient
         }
         catch (HttpRequestException ex)
         {
-            // HttpRequestException.Message carries the status code, never the URL,
-            // so the API key cannot leak through this log line.
+            // HttpRequestException.Message carries the status code, never the URL
+            // or body, so the API key cannot leak through this log line.
             _logger.LogError(ex, "HTTP error while {Operation} with ZeroBounce", operation);
             return Fail($"HTTP error calling ZeroBounce: {ex.Message}", "http_error", ex);
         }
