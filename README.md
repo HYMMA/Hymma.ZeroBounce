@@ -20,6 +20,7 @@ This library is `async` end to end, built on `IHttpClientFactory`, registered wi
 - **Fail-open by default** — network trouble comes back as `Status = Error`, never as a thrown exception, unless you ask for `ThrowOnError`
 - **Caller cancellation is honoured** — your `CancellationToken` propagates as `OperationCanceledException`; it is never reported as a ZeroBounce failure
 - **Regional endpoints** — global, U.S. and EU base URLs as constants
+- **`EmailValidationException`** — a ready-made exception carrying the verdict, for callers that refuse a send and want "bad recipient" distinguishable from "mail service down"
 - **Key stays out of URLs** — every request carries the API key in a POST body, so HttpClientFactory's request-URI log lines and OpenTelemetry's `url.full` never contain it
 
 ## Installation

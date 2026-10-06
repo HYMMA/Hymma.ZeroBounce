@@ -29,3 +29,34 @@ public class ZeroBounceException : Exception
         Code = code;
     }
 }
+
+/// <summary>
+/// Thrown by a consumer when an address failed validation and a send was refused.
+/// The library itself never throws this; it exists so callers up the stack can catch
+/// "the recipient is bad" separately from "the email service is down".
+/// </summary>
+public class EmailValidationException : Exception
+{
+    /// <summary>
+    /// The verdict that caused the refusal.
+    /// </summary>
+    public EmailValidationResult ValidationResult { get; }
+
+    /// <summary>
+    /// Creates an exception with a default message naming the address and verdict.
+    /// </summary>
+    public EmailValidationException(EmailValidationResult result)
+        : base($"Email '{result.Email}' failed validation: {result.Status}/{result.SubStatus}")
+    {
+        ValidationResult = result;
+    }
+
+    /// <summary>
+    /// Creates an exception with a custom message.
+    /// </summary>
+    public EmailValidationException(EmailValidationResult result, string message)
+        : base(message)
+    {
+        ValidationResult = result;
+    }
+}

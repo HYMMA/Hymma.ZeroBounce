@@ -55,6 +55,21 @@ public class EmailValidationResultTests
     }
 
     [Fact]
+    public void EmailValidationException_CarriesTheVerdict()
+    {
+        var result = Result(EmailValidationStatus.Invalid, EmailValidationSubStatus.MailboxNotFound);
+
+        var withDefaultMessage = new EmailValidationException(result);
+        var withCustomMessage = new EmailValidationException(result, "nope");
+
+        Assert.Same(result, withDefaultMessage.ValidationResult);
+        Assert.Contains("a@b.com", withDefaultMessage.Message);
+        Assert.Contains("Invalid/MailboxNotFound", withDefaultMessage.Message);
+        Assert.Equal("nope", withCustomMessage.Message);
+        Assert.Same(result, withCustomMessage.ValidationResult);
+    }
+
+    [Fact]
     public void Defaults_AreNullOrFalse()
     {
         var result = new EmailValidationResult { Email = "a@b.com" };
